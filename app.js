@@ -57,8 +57,7 @@ app.get('/login', (req, res) =>
 
 app.get('/users/articles', (req, res) =>
 {
-    // let userId = req.session.user.userId
-    let userId = 6
+    let userId = req.session.user.userId
     db.any('SELECT articleid, title, body FROM articles WHERE userid = $1', [userId]).then((articles) =>
     {
         res.render('articles', { articles: articles })
@@ -76,6 +75,19 @@ app.post('/users/update-article', (req, res) =>
         {
             res.redirect('/users/articles')
         })
+})
+
+app.post('/users/delete-article', (req, res) =>
+{
+
+    let articleId = req.body.articleId
+
+    db.none('DELETE FROM articles WHERE articleid = $1', [articleId])
+        .then(() =>
+        {
+            res.redirect('/users/articles')
+        })
+
 })
 
 app.get('/users/articles/edit/:articleId', (req, res) =>
