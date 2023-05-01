@@ -1,48 +1,56 @@
 const express = require('express')
 const bcrypt = require('bcrypt')
+const session = require('express-session')
 const router = express.Router()
 
 const SALT_ROUNDS = 10
 
-router.get('/', (req, res) =>
+router.get('/', async (req, res) =>
 {
-    db.any('SELECT articleid, title, body FROM articles').then((articles) =>
-    {
-        res.render('index', { articles: articles })
-    })
+    res.render('index', { articles: articles })
+    let articles = await db.any('SELECT articleid, title, body FROM articles')
+    res.render('index', { articles: articles })
 })
+
+router.get('/logout', (req, res, next) =>
+{
+    if (req, session)
+    {
+        req.session.destroy((error) =>
+        {
+            if (error) next(error)
+            else res.redirect('/login')
+        })
+    }
+})
+
 
 router.get('/register', (req, res) =>
 {
     res.render('register')
 })
 
-router.post('/register', (req, res) =>
+router.post('/register', async (req, res) =>
 {
     let username = req.body.username
     let password = req.body.password
 
-    db.oneOrNone('SELECT userid FROM users WHERE username = $1', [username]).then((user) =>
+    let user = await db.oneOrNone('SELECT userid FROM users WHERE username = $1', [username])
+    if (user)
     {
-        if (user)
+        res.render('register', { message: "User name already exists!" })
+    } else
+    {
+        // insert user into the users table
+        bcrypt.hash(password, SALT_ROUNDS, async function (error, hash)
         {
-            res.render('register', { message: "User name already exists!" })
-        } else
-        {
-            // insert user into the users table
-            bcrypt.hash(password, SALT_ROUNDS, function (error, hash)
+            if (error == null)
             {
-                if (error == null)
-                {
-                    db.none('INSERT INTO users(username,password) VALUES($1,$2)', [username, hash]).then(() =>
-                    {
-                        res.send('SUCCESS')
-                    })
-                }
-            })
-
-        }
-    })
+                await db.none('INSERT INTO users(username,password) VALUES($1,$2)', [username, hash])
+                res.send('SUCCESS')
+            }
+        })
+    }
 })
 
 router.get('/login', (req, res) =>
@@ -50,38 +58,36 @@ router.get('/login', (req, res) =>
     res.render('login')
 })
 
-router.post('/login', (req, res) =>
+router.post('/login', async (req, res) =>
 {
     let username = req.body.username
     let password = req.body.password
 
-    db.oneOrNone('SELECT userid, username, password FROM users WHERE username = $1', [username]).then((user) =>
-    {
-        if (user)
-        { // check for user's password
-            bcrypt.compare(password, user.password, function (error, result)
+    let user = await db.oneOrNone('SELECT userid, username, password FROM users WHERE username = $1', [username])
+    if (user)
+    { // check for user's password
+        bcrypt.compare(password, user.password, function (error, result)
+        {
+            if (result)
             {
-                if (result)
+                // put username and userid in the session
+                if (req.session)
                 {
-                    // put username and userid in the session
-                    if (req.session)
-                    {
-                        req.session.user = {
-                            userId: user.userid,
-                            username: user.username,
-                        }
+                    req.session.user = {
+                        userId: user.userid,
+                        username: user.username,
                     }
-                    res.redirect('/users/articles')
-                } else
-                {
-                    res.render('login', { message: 'Invalid username or password!' })
                 }
-            })
-        } else
-        { // user does not exist
-            res.render('login', { message: 'Invalid username or password!' })
-        }
-    })
+                res.redirect('/users/articles')
+            } else
+            {
+                res.render('login', { message: 'Invalid username or password!' })
+            }
+        })
+    } else
+    { // user does not exist
+        res.render('login', { message: 'Invalid username or password!' })
+    }
 })
 
 module.exports = router
