@@ -20,6 +20,8 @@ app.engine('mustache', mustacheExpress(VIEWS_PATH + '/partials', '.mustache'))
 app.set('views', VIEWS_PATH)
 app.set('view engine', 'mustache')
 
+app.use('/css', express.static('css'))
+
 app.use(session({
     secret: 'dkvlvlvmkcdlmkv',
     resave: false,
@@ -28,6 +30,14 @@ app.use(session({
 app.use(bodyParser.urlencoded({ extended: false }))
 
 const db = pgp(CONNECTION_STRING)
+
+app.get('/', (req, res) =>
+{
+    db.any('SELECT articleid, title, body FROM articles').then((articles) =>
+    {
+        res.render('index', { articles: articles })
+    })
+})
 
 app.get('/users/add-article', (req, res) =>
 {
